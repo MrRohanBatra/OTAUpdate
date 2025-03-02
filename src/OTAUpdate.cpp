@@ -94,22 +94,28 @@ bool OTAUpdate::performUpdate(const char *updateUrl, int partitionType)
         return false;
     }
 
-    Serial.println("⬇️ Downloading update...");
-    int written = 0;
-    uint8_t buffer[128];
+  Serial.println("⬇️ Downloading update...");
+int written = 0;
+uint8_t buffer[128];
+int lastProgress = -1;  // Store last progress to prevent duplicate prints
 
-    while (written < contentLength)
+while (written < contentLength)
+{
+    int bytesRead = stream->readBytes(buffer, sizeof(buffer));
+    if (bytesRead > 0)
     {
-        int bytesRead = stream->readBytes(buffer, sizeof(buffer));
-        if (bytesRead > 0)
-        {
-            Update.write(buffer, bytesRead);
-            written += bytesRead;
+        Update.write(buffer, bytesRead);
+        written += bytesRead;
 
-            int progress = (written * 100) / contentLength;
+        int progress = (written * 100) / contentLength;
+        
+        if (progress > lastProgress)  // Print only if progress changed
+        {
             Serial.printf("📊 Progress: %d%%\n", progress);
+            lastProgress = progress;
         }
     }
+}
 
     Serial.println("✅ Download complete. Finalizing update...");
 
