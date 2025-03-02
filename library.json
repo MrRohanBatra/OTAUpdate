@@ -1,0 +1,20 @@
+{
+    "name": "OTAUpdate",
+    "version": "1.0.0",
+    "description": "ESP32 OTA Update Library",
+    "authors": [
+        {
+            "name": "Rohan Batra",
+            "email": "rohanbatra.in@gmail.com"
+        }
+    ],
+    "license": "MIT",
+    "frameworks": "arduino",
+    "platforms": "espressif32",
+    "dependencies": {
+        "WiFi": "*",
+        "HTTPClient": "*",
+        "Update": "*",
+        "SPIFFS": "*"
+    }
+}
