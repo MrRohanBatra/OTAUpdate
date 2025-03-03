@@ -6,6 +6,7 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <SPIFFS.h>
+#include <WebServer.h>
 
 class OTAUpdate
 {
@@ -27,6 +28,9 @@ private:
     void stringToFirmware(const String &Firmware, int arr[3]);
     bool checkUpgradedVersion(int arr[]);
     bool performUpdate(const char *updateUrl, int partitionType);
+    bool performUpdateFromFile(Stream &updateStream, size_t contentLength, int partitionType);
+    void handleUpdatePost(WebServer &server);
+    void handleUpdateGet(WebServer &server);
 };
 
 #endif
