@@ -238,6 +238,69 @@ void OTAUpdate::checkForUpdates()
     }
     http.end();
 }
+
+// Handles POST request: Begins the update process
+void OTAUpdate::handleUpdatePost(WebServer &server) {
+    if (Update.hasError()) {
+        server.send(500, "text/plain", "❌ Update Failed.");
+    } else {
+        server.send(200, "text/plain", "✅ Update Successful! Rebooting...");
+        delay(1500);
+        ESP.restart();
+    }
+}
+
+// Handles file upload during OTA update
+// void OTAUpdate::handleUpdatePost(WebServer &server) {
+//     HTTPUpload &upload = server.upload();
+//     static File updateFile;
+//     static int partitionType;
+
+//     if (upload.status == UPLOAD_FILE_START) {
+//         // Validate update type
+//         String typeArg = server.arg("type");
+//         if (typeArg != "0" && typeArg != "1") {
+//             server.send(400, "text/plain", "❌ Invalid update type.");
+//             return;
+//         }
+
+//         partitionType = (typeArg.toInt() == 1) ? U_SPIFFS : U_FLASH;
+
+//         // Open file for writing
+//         updateFile = SPIFFS.open("/update.bin", "w");
+//         if (!updateFile) {
+//             server.send(500, "text/plain", "❌ Failed to open file for writing.");
+//             return;
+//         }
+//         Serial.println("⬇️ Receiving update file...");
+//     } 
+//     else if (upload.status == UPLOAD_FILE_WRITE) {
+//         if (updateFile) {
+//             updateFile.write(upload.buf, upload.currentSize);
+//         }
+//     } 
+//     else if (upload.status == UPLOAD_FILE_END) {
+//         if (!updateFile) {
+//             server.send(500, "text/plain", "❌ File write failed.");
+//             return;
+//         }
+
+//         updateFile.close();
+//         updateFile = SPIFFS.open("/update.bin", "r");
+        
+//         if (!updateFile || updateFile.size() <= 0) {
+//             server.send(500, "text/plain", "❌ Invalid update file.");
+//             return;
+//         }
+
+//         // Perform the update
+//         if (performUpdateFromFile(updateFile, updateFile.size(), partitionType)) {
+//             Serial.println("✅ Update successful.");
+//         } else {
+//             server.send(500, "text/plain", "❌ Update Failed.");
+//         }
+//     }
+// }
 void OTAUpdate::setupManualOTA(WebServer &server) {
     server.on("/update", HTTP_GET, std::bind(&OTAUpdate::handleUpdateGet, this, std::ref(server)));
     server.on("/update", HTTP_POST, std::bind(&OTAUpdate::handleUpdatePost, this, std::ref(server)), 
@@ -261,15 +324,15 @@ void OTAUpdate::handleUpdateGet(WebServer &server) {
 }
 
 // Handles POST request: Begins the update process
-void OTAUpdate::handleUpdatePost(WebServer &server) {
-    if (Update.hasError()) {
-        server.send(500, "text/plain", "❌ Update Failed.");
-    } else {
-        server.send(200, "text/plain", "✅ Update Successful! Rebooting...");
-        delay(1500);
-        ESP.restart();
-    }
-}
+// void OTAUpdate::handleUpdatePost(WebServer &server) {
+//     if (Update.hasError()) {
+//         server.send(500, "text/plain", "❌ Update Failed.");
+//     } else {
+//         server.send(200, "text/plain", "✅ Update Successful! Rebooting...");
+//         delay(1500);
+//         ESP.restart();
+//     }
+// }
 
 // Handles file upload during OTA update
 void OTAUpdate::handleUpdateUpload(WebServer &server) {

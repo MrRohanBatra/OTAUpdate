@@ -7,6 +7,7 @@
 #include <Update.h>
 #include <SPIFFS.h>
 #include <WebServer.h>
+#include <ArduinoJson.h>
 
 class OTAUpdate
 {
@@ -31,6 +32,8 @@ private:
     bool performUpdateFromFile(Stream &updateStream, size_t contentLength, int partitionType);
     void handleUpdatePost(WebServer &server);
     void handleUpdateGet(WebServer &server);
+    void handleUpdateUpload(WebServer &server);
+
 };
 
 #endif
