@@ -14,7 +14,7 @@ public:
     void setFirmwareVersion(int major, int minor, int patch);
     void begin();
     void checkForUpdates();
-    
+    void setupManualOTA(WebServer &server);
 
 private:
     const char *ssid;
