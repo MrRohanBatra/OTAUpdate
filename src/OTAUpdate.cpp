@@ -302,86 +302,111 @@ void OTAUpdate::handleUpdatePost(WebServer &server) {
 //     }
 // }
 void OTAUpdate::setupManualOTA(WebServer &server) {
-    server.on("/update", HTTP_GET, std::bind(&OTAUpdate::handleUpdateGet, this, std::ref(server)));
-    server.on("/update", HTTP_POST, std::bind(&OTAUpdate::handleUpdatePost, this, std::ref(server)), 
-              std::bind(&OTAUpdate::handleUpdateUpload, this, std::ref(server)));
+    server.on("/update", HTTP_GET, [this, &server]() { handleUpdateGet(server); });
+    server.on("/update", HTTP_POST, [this, &server]() { handleUpdatePost(server); },
+              [this, &server]() { handleUpdateUpload(server); });
 }
 
-// Handles GET request: Serves the OTA update webpage
 void OTAUpdate::handleUpdateGet(WebServer &server) {
-    server.send(200, "text/html",
-        "<html><body>"
-        "<h2>ESP32 OTA Update</h2>"
-        "<form method='POST' action='/update' enctype='multipart/form-data'>"
-        "    <input type='file' name='update'>"
-        "    <select name='type'>"
-        "        <option value='0'>Firmware</option>"
-        "        <option value='1'>SPIFFS</option>"
-        "    </select>"
-        "    <input type='submit' value='Update'>"
-        "</form>"
-        "</body></html>");
+    String updateForm = R"rawliteral(
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>ESP32 OTA Update</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+            <script>
+                function startUpload(type) {
+                    document.getElementById("status").innerHTML = "Uploading " + type + "...";
+                    document.getElementById("progress").style.width = "0%";
+                    document.getElementById("progress").innerHTML = "0%";
+                }
+
+                function updateProgress(event) {
+                    if (event.lengthComputable) {
+                        let percent = Math.round((event.loaded / event.total) * 100);
+                        document.getElementById("progress").style.width = percent + "%";
+                        document.getElementById("progress").innerHTML = percent + "%";
+                    }
+                }
+
+                function uploadFile(type) {
+                    let formData = new FormData();
+                    let fileInput = document.getElementById(type);
+                    if (!fileInput.files.length) {
+                        alert("Please select a file for " + type + " update.");
+                        return;
+                    }
+                    formData.append("update", fileInput.files[0]);
+
+                    let xhr = new XMLHttpRequest();
+                    xhr.open("POST", "/update", true);
+                    xhr.upload.addEventListener("progress", updateProgress);
+                    xhr.onload = function () {
+                        if (xhr.status === 200) {
+                            document.getElementById("status").innerHTML = "Update successful! Rebooting...";
+                            setTimeout(() => location.reload(), 2000);
+                        } else {
+                            document.getElementById("status").innerHTML = "Update failed!";
+                        }
+                    };
+                    startUpload(type);
+                    xhr.send(formData);
+                }
+            </script>
+        </head>
+        <body class="container mt-5">
+            <h2 class="text-center">ESP32 OTA Update</h2>
+            <div class="card p-4 shadow">
+                <h5>Firmware Update</h5>
+                <input type="file" id="firmware" class="form-control mb-2">
+                <button class="btn btn-primary w-100" onclick="uploadFile('firmware')">Upload Firmware</button>
+
+                <hr>
+                <h5>SPIFFS Update</h5>
+                <input type="file" id="spiffs" class="form-control mb-2">
+                <button class="btn btn-success w-100" onclick="uploadFile('spiffs')">Upload SPIFFS</button>
+
+                <div class="progress mt-3">
+                    <div id="progress" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+                </div>
+                <p id="status" class="mt-2 text-center text-info"></p>
+            </div>
+        </body>
+        </html>
+    )rawliteral";
+    server.send(200, "text/html", updateForm);
 }
 
-// Handles POST request: Begins the update process
-// void OTAUpdate::handleUpdatePost(WebServer &server) {
-//     if (Update.hasError()) {
-//         server.send(500, "text/plain", "❌ Update Failed.");
-//     } else {
-//         server.send(200, "text/plain", "✅ Update Successful! Rebooting...");
-//         delay(1500);
-//         ESP.restart();
-//     }
-// }
+void OTAUpdate::handleUpdatePost(WebServer &server) {
+    if (!Update.hasError()) {
+        server.send(200, "text/plain", "Update Successful! Rebooting...");
+        delay(1000);
+        ESP.restart();
+    } else {
+        server.send(500, "text/plain", "Update Failed!");
+    }
+}
 
-// Handles file upload during OTA update
 void OTAUpdate::handleUpdateUpload(WebServer &server) {
     HTTPUpload &upload = server.upload();
-    static File updateFile;
-    static int partitionType;
+    int partitionType = (server.arg("update") == "spiffs") ? U_SPIFFS : U_FLASH;
 
     if (upload.status == UPLOAD_FILE_START) {
-        // Validate update type
-        String typeArg = server.arg("type");
-        if (typeArg != "0" && typeArg != "1") {
-            server.send(400, "text/plain", "❌ Invalid update type.");
-            return;
+        Serial.printf("Update: %s\n", upload.filename.c_str());
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, partitionType)) {
+            Update.printError(Serial);
         }
-
-        partitionType = (typeArg.toInt() == 1) ? U_SPIFFS : U_FLASH;
-
-        // Open file for writing
-        updateFile = SPIFFS.open("/update.bin", "w");
-        if (!updateFile) {
-            server.send(500, "text/plain", "❌ Failed to open file for writing.");
-            return;
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+            Update.printError(Serial);
         }
-        Serial.println("⬇️ Receiving update file...");
-    } 
-    else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (updateFile) {
-            updateFile.write(upload.buf, upload.currentSize);
-        }
-    } 
-    else if (upload.status == UPLOAD_FILE_END) {
-        if (!updateFile) {
-            server.send(500, "text/plain", "❌ File write failed.");
-            return;
-        }
-
-        updateFile.close();
-        updateFile = SPIFFS.open("/update.bin", "r");
-        
-        if (!updateFile || updateFile.size() <= 0) {
-            server.send(500, "text/plain", "❌ Invalid update file.");
-            return;
-        }
-
-        // Perform the update
-        if (performUpdateFromFile(updateFile, updateFile.size(), partitionType)) {
-            Serial.println("✅ Update successful.");
+    } else if (upload.status == UPLOAD_FILE_END) {
+        if (Update.end(true)) {
+            Serial.println("Update Successful");
         } else {
-            server.send(500, "text/plain", "❌ Update Failed.");
+            Update.printError(Serial);
         }
     }
 }
