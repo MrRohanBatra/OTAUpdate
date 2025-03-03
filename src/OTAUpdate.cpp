@@ -240,15 +240,15 @@ void OTAUpdate::checkForUpdates()
 }
 
 // Handles POST request: Begins the update process
-void OTAUpdate::handleUpdatePost(WebServer &server) {
-    if (Update.hasError()) {
-        server.send(500, "text/plain", "❌ Update Failed.");
-    } else {
-        server.send(200, "text/plain", "✅ Update Successful! Rebooting...");
-        delay(1500);
-        ESP.restart();
-    }
-}
+// void OTAUpdate::handleUpdatePost(WebServer &server) {
+//     if (Update.hasError()) {
+//         server.send(500, "text/plain", "❌ Update Failed.");
+//     } else {
+//         server.send(200, "text/plain", "✅ Update Successful! Rebooting...");
+//         delay(1500);
+//         ESP.restart();
+//     }
+// }
 
 // Handles file upload during OTA update
 // void OTAUpdate::handleUpdatePost(WebServer &server) {
