@@ -1,6 +1,6 @@
 {
     "name": "OTAUpdate",
-    "version": "7.0.0",
+    "version": "7.0.1",
     "description": "ESP32 OTA Update Library",
     "authors": [
         {
