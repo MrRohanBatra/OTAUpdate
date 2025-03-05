@@ -6,6 +6,45 @@ OTAUpdate::OTAUpdate(const String &serverUrl)
     firmwareUrl = serverUrl + "/firmware.bin";
     spiffsUrl = serverUrl + "/spiffs.bin";
 }
+void OTAUpdate::updateDisplayProgress(String heading, int progress)
+{
+    display.clearDisplay();
+
+    // Set text size and color
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+
+    // Calculate center position for heading
+    int16_t x, y;
+    uint16_t w, h;
+    display.getTextBounds(heading, 0, 0, &x, &y, &w, &h);
+    int centerX = (display.width() - w) / 2;
+
+    // Draw centered heading
+    display.setCursor(centerX, 10);
+    display.print(heading);
+
+    // Draw progress bar
+    int barX = 10;
+    int barY = 30;
+    int barWidth = 100;
+    int barHeight = 10;
+
+    display.drawRect(barX, barY, barWidth, barHeight, SSD1306_WHITE);
+    display.fillRect(barX, barY, (progress * barWidth) / 100, barHeight, SSD1306_WHITE);
+
+    // Draw progress percentage below bar
+    String progressText = String(progress) + "%";
+    display.getTextBounds(progressText, 0, 0, &x, &y, &w, &h);
+    int progressTextX = (display.width() - w) / 2;
+
+    display.setCursor(progressTextX, barY + barHeight + 5);
+    display.print(progressText);
+
+    // Display changes
+    display.display();
+}
+
 void OTAUpdate::setFirmwareVersion(int major, int minor, int patch)
 {
     currentFirmwareVersion[0] = major;
@@ -25,7 +64,7 @@ void OTAUpdate::begin()
     {
         Serial.println("❌ SPIFFS Mount Failed");
     }
-
+    display.begin(SSD1306_SWITCHCAPVCC, 0x3c, -1);
     checkForUpdates();
 }
 
@@ -87,7 +126,15 @@ bool OTAUpdate::performUpdate(const char *updateUrl, int partitionType)
     int written = 0;
     uint8_t buffer[128];
     int lastProgress = -1; // Store last progress to prevent duplicate prints
-
+    String heading;
+    if (partitionType == U_FLASH)
+    {
+        heading = "Firmware OTA";
+    }
+    if (partitionType == U_SPIFFS)
+    {
+        heading = "SPIFFS OTA";
+    }
     while (written < contentLength)
     {
         int bytesRead = stream->readBytes(buffer, sizeof(buffer));
@@ -97,11 +144,11 @@ bool OTAUpdate::performUpdate(const char *updateUrl, int partitionType)
             written += bytesRead;
 
             int progress = (written * 100) / contentLength;
-
             if (progress > lastProgress) // Print only if progress changed
             {
                 Serial.printf("📊 Progress: %d%%\n", progress);
                 lastProgress = progress;
+                updateDisplayProgress(heading, progress);
             }
         }
     }
@@ -137,7 +184,15 @@ bool OTAUpdate::performUpdateFromFile(Stream &updateStream, size_t contentLength
     size_t written = 0;
     uint8_t buffer[128];
     int lastProgress = -1;
-
+    String heading;
+    if (partitionType == U_FLASH)
+    {
+        heading = "Firmware OTA";
+    }
+    if (partitionType == U_SPIFFS)
+    {
+        heading = "SPIFFS OTA";
+    }
     while (written < contentLength)
     {
         size_t bytesRead = updateStream.readBytes(buffer, sizeof(buffer));
@@ -151,6 +206,8 @@ bool OTAUpdate::performUpdateFromFile(Stream &updateStream, size_t contentLength
             {
                 Serial.printf("📊 Progress: %d%%\n", progress);
                 lastProgress = progress;
+                updateDisplayProgress(heading, progress);
+                display.display(); // Ensure update is pushed to OLED
             }
         }
     }
@@ -166,11 +223,127 @@ bool OTAUpdate::performUpdateFromFile(Stream &updateStream, size_t contentLength
     Serial.println("✅ Update successful!");
     return true;
 }
+bool OTAUpdate::updateavailabe(){
+    HTTPClient http;
+    http.setTimeout(5000);
+    http.begin(serverUrl + "/config.json");
 
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK)
+    {
+        String input = http.getString();
+        JsonDocument doc;
+
+        DeserializationError error = deserializeJson(doc, input);
+
+        if (error)
+        {
+            Serial.print("deserializeJson() failed: ");
+            Serial.println(error.c_str());
+
+            display.clearDisplay();
+            display.setCursor(10, 10);
+            display.print("Update Error");
+            display.setCursor(10, 20);
+            display.print("JSON Failed");
+            display.display();
+
+            return false;
+        }
+
+        const char *firmware_version = doc["firmware_version"];
+        int arr[3];
+        stringToFirmware(firmware_version, arr);
+        http.end();
+        return checkUpgradedVersion(arr);
+        
+
+}
+}
+// void OTAUpdate::checkForUpdates()
+// {
+//     bool ESPUPGRADED = false;
+//     Serial.println("🔍 Checking for firmware update...");
+
+//     HTTPClient http;
+//     http.setTimeout(5000);
+//     http.begin(serverUrl + "/config.json");
+
+//     int httpCode = http.GET();
+//     if (httpCode == HTTP_CODE_OK)
+//     {
+//         String input = http.getString();
+//         JsonDocument doc;
+
+//         DeserializationError error = deserializeJson(doc, input);
+
+//         if (error)
+//         {
+//             Serial.print("deserializeJson() failed: ");
+//             Serial.println(error.c_str());
+//             return;
+//         }
+
+//         const char *firmware_version = doc["firmware_version"];
+//         int arr[3];
+//         stringToFirmware(firmware_version, arr);
+//         Serial.printf("Found version: %s\n",firmware_version);
+
+//         if (checkUpgradedVersion(arr))
+//         {
+//             Serial.println("🔍 Checking for SPIFFS update first...");
+//             if (performUpdate(spiffsUrl.c_str(), U_SPIFFS))
+//             {
+//                 Serial.println("✅ SPIFFS updated successfully.");
+//                 ESPUPGRADED = true;
+//             }
+//             else
+//             {
+//                 Serial.println("⚠️ No SPIFFS update available.");
+//             }
+
+//             Serial.println("🔍 Checking for Firmware update...");
+//             if (performUpdate(firmwareUrl.c_str(), U_FLASH))
+//             {
+//                 Serial.println("✅ Firmware updated successfully.");
+//                 ESPUPGRADED = true;
+//             }
+//             else
+//             {
+//                 Serial.println("⚠️ No firmware update available.");
+//             }
+
+//             if (ESPUPGRADED)
+//             {
+//                 Serial.println("🔄 Rebooting ESP32 to apply updates...");
+//                 delay(1000);
+//                 ESP.restart();
+//             }
+//             else
+//             {
+//                 Serial.println("✅ Everything is already up-to-date.");
+//             }
+//         }
+//     }
+//     else
+//     {
+//         Serial.println("❌ Failed to fetch version info.");
+//     }
+//     http.end();
+// }
 void OTAUpdate::checkForUpdates()
 {
     bool ESPUPGRADED = false;
     Serial.println("🔍 Checking for firmware update...");
+
+    // display.clearDisplay();
+    // display.setTextSize(1);
+    // display.setTextColor(SSD1306_WHITE);
+    // display.setCursor(10, 10);
+    // display.print("Checking for");
+    // display.setCursor(10, 20);
+    // display.print("Updates...");
+    // display.display();
 
     HTTPClient http;
     http.setTimeout(5000);
@@ -188,53 +361,135 @@ void OTAUpdate::checkForUpdates()
         {
             Serial.print("deserializeJson() failed: ");
             Serial.println(error.c_str());
+
+            // display.clearDisplay();
+            // display.setCursor(10, 10);
+            // display.print("Update Error");
+            // display.setCursor(10, 20);
+            // display.print("JSON Failed");
+            // display.display();
+
             return;
         }
 
         const char *firmware_version = doc["firmware_version"];
         int arr[3];
         stringToFirmware(firmware_version, arr);
-        Serial.printf("Found version: %s\n",firmware_version);
+        Serial.printf("Found version: %s\n", firmware_version);
+
+        // display.clearDisplay();
+        // display.setCursor(10, 10);
+        // display.print("Found Version:");
+        // display.setCursor(10, 20);
+        // display.print(firmware_version);
+        // display.display();
+        // delay(1000);
 
         if (checkUpgradedVersion(arr))
         {
             Serial.println("🔍 Checking for SPIFFS update first...");
+
+            // display.clearDisplay();
+            // display.setCursor(10, 10);
+            // display.print("Checking");
+            // display.setCursor(10, 20);
+            // display.print("SPIFFS Update...");
+            // display.display();
+
             if (performUpdate(spiffsUrl.c_str(), U_SPIFFS))
             {
                 Serial.println("✅ SPIFFS updated successfully.");
                 ESPUPGRADED = true;
+
+                display.clearDisplay();
+                display.setCursor(10, 10);
+                display.print("SPIFFS Updated");
+                display.display();
+                delay(1000);
             }
             else
             {
                 Serial.println("⚠️ No SPIFFS update available.");
+
+                display.clearDisplay();
+                display.setCursor(10, 10);
+                display.print("No SPIFFS");
+                display.setCursor(10, 20);
+                display.print("Update Found");
+                display.display();
+                delay(1000);
             }
 
             Serial.println("🔍 Checking for Firmware update...");
+
+            display.clearDisplay();
+            display.setCursor(10, 10);
+            display.print("Checking");
+            display.setCursor(10, 20);
+            display.print("Firmware Update...");
+            display.display();
+
             if (performUpdate(firmwareUrl.c_str(), U_FLASH))
             {
                 Serial.println("✅ Firmware updated successfully.");
                 ESPUPGRADED = true;
+
+                display.clearDisplay();
+                display.setCursor(10, 10);
+                display.print("Firmware Updated");
+                display.display();
+                delay(1000);
             }
             else
             {
                 Serial.println("⚠️ No firmware update available.");
+
+                display.clearDisplay();
+                display.setCursor(10, 10);
+                display.print("No Firmware");
+                display.setCursor(10, 20);
+                display.print("Update Found");
+                display.display();
+                delay(1000);
             }
 
             if (ESPUPGRADED)
             {
                 Serial.println("🔄 Rebooting ESP32 to apply updates...");
+
+                display.clearDisplay();
+                display.setCursor(10, 10);
+                display.print("Rebooting...");
+                display.display();
                 delay(1000);
+
                 ESP.restart();
             }
             else
             {
                 Serial.println("✅ Everything is already up-to-date.");
+
+                display.clearDisplay();
+                display.setCursor(10, 10);
+                display.print("Already");
+                display.setCursor(10, 20);
+                display.print("Up-to-date");
+                display.display();
+                delay(2000);
             }
         }
     }
     else
     {
         Serial.println("❌ Failed to fetch version info.");
+
+        display.clearDisplay();
+        display.setCursor(10, 10);
+        display.print("Update Error");
+        display.setCursor(10, 20);
+        display.print("Network Failed");
+        display.display();
+        delay(2000);
     }
     http.end();
 }
@@ -273,12 +528,12 @@ void OTAUpdate::checkForUpdates()
 //             return;
 //         }
 //         Serial.println("⬇️ Receiving update file...");
-//     } 
+//     }
 //     else if (upload.status == UPLOAD_FILE_WRITE) {
 //         if (updateFile) {
 //             updateFile.write(upload.buf, upload.currentSize);
 //         }
-//     } 
+//     }
 //     else if (upload.status == UPLOAD_FILE_END) {
 //         if (!updateFile) {
 //             server.send(500, "text/plain", "❌ File write failed.");
@@ -287,7 +542,7 @@ void OTAUpdate::checkForUpdates()
 
 //         updateFile.close();
 //         updateFile = SPIFFS.open("/update.bin", "r");
-        
+
 //         if (!updateFile || updateFile.size() <= 0) {
 //             server.send(500, "text/plain", "❌ Invalid update file.");
 //             return;
@@ -301,13 +556,17 @@ void OTAUpdate::checkForUpdates()
 //         }
 //     }
 // }
-void OTAUpdate::setupManualOTA(WebServer &server) {
-    server.on("/update", HTTP_GET, [this, &server]() { handleUpdateGet(server); });
-    server.on("/update", HTTP_POST, [this, &server]() { handleUpdatePost(server); },
-              [this, &server]() { handleUpdateUpload(server); });
+void OTAUpdate::setupManualOTA(WebServer &server)
+{
+    server.on("/update", HTTP_GET, [this, &server]()
+              { handleUpdateGet(server); });
+    server.on("/update", HTTP_POST, [this, &server]()
+              { handleUpdatePost(server); }, [this, &server]()
+              { handleUpdateUpload(server); });
 }
 
-void OTAUpdate::handleUpdateGet(WebServer &server) {
+void OTAUpdate::handleUpdateGet(WebServer &server)
+{
     String updateForm = R"rawliteral(
         <!DOCTYPE html>
         <html lang="en">
@@ -379,33 +638,48 @@ void OTAUpdate::handleUpdateGet(WebServer &server) {
     server.send(200, "text/html", updateForm);
 }
 
-void OTAUpdate::handleUpdatePost(WebServer &server) {
-    if (!Update.hasError()) {
+void OTAUpdate::handleUpdatePost(WebServer &server)
+{
+    if (!Update.hasError())
+    {
         server.send(200, "text/plain", "Update Successful! Rebooting...");
         delay(1000);
         ESP.restart();
-    } else {
+    }
+    else
+    {
         server.send(500, "text/plain", "Update Failed!");
     }
 }
 
-void OTAUpdate::handleUpdateUpload(WebServer &server) {
+void OTAUpdate::handleUpdateUpload(WebServer &server)
+{
     HTTPUpload &upload = server.upload();
     int partitionType = (server.arg("update") == "spiffs") ? U_SPIFFS : U_FLASH;
 
-    if (upload.status == UPLOAD_FILE_START) {
+    if (upload.status == UPLOAD_FILE_START)
+    {
         Serial.printf("Update: %s\n", upload.filename.c_str());
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, partitionType)) {
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, partitionType))
+        {
             Update.printError(Serial);
         }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+    }
+    else if (upload.status == UPLOAD_FILE_WRITE)
+    {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+        {
             Update.printError(Serial);
         }
-    } else if (upload.status == UPLOAD_FILE_END) {
-        if (Update.end(true)) {
+    }
+    else if (upload.status == UPLOAD_FILE_END)
+    {
+        if (Update.end(true))
+        {
             Serial.println("Update Successful");
-        } else {
+        }
+        else
+        {
             Update.printError(Serial);
         }
     }

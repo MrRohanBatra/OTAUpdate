@@ -8,17 +8,26 @@
 #include <SPIFFS.h>
 #include <WebServer.h>
 #include <ArduinoJson.h>
-
+#include <Adafruit_GFX.h>
+#include<Adafruit_SSD1306.h>
 class OTAUpdate
 {
 public:
     OTAUpdate(const String &serverUrl);
     void setFirmwareVersion(int major, int minor, int patch);
     void begin();
+    void setupdisplay(Adafruit_SSD1306 &d){
+        display=d;
+    }
     void checkForUpdates();
     void setupManualOTA(WebServer &server);
-
+    void updateDisplayProgress(String heading,int progress);
+    bool updateavailabe();
+    bool updateAvailable(){
+        return updateavailabe();
+    }
 private:
+    Adafruit_SSD1306 display;
     const char *ssid;
     const char *password;
     String serverUrl;
