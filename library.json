@@ -1,11 +1,12 @@
 {
     "name": "OTAUpdate",
-    "version": "7.0.2",
+    "version": "7.0.3",
     "description": "ESP32 OTA Update Library",
     "authors": [
         {
             "name": "Rohan Batra",
-            "email": "rohanbatra.in@gmail.com"
+            "email": "rohanbatra.in@gmail.com",
+            "url": "https://github.com/MrRohanBatra/OTAUpdate"
         }
     ],
     "license": "MIT",

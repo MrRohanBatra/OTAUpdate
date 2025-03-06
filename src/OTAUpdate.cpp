@@ -5,6 +5,12 @@ OTAUpdate::OTAUpdate(const String &serverUrl)
     firmwareUrl = serverUrl + "/firmware.bin";
     spiffsUrl = serverUrl + "/spiffs.bin";
 }
+void OTAUpdate::updateurl(const String &serve){
+    serverUrl=serve;
+    firmwareUrl = serverUrl + "/firmware.bin";
+    spiffsUrl = serverUrl + "/spiffs.bin";
+}
+
 void OTAUpdate::updateDisplayProgress(String heading, int progress)
 {
     display.clearDisplay();

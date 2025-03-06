@@ -28,7 +28,7 @@ public:
     // {
     //     return updateavailabe();
     // }
-
+    void updateurl(const String &serve);
 private:
     HTTPClient http;
     Adafruit_SSD1306 display;
