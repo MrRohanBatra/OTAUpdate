@@ -1,5 +1,4 @@
 #include "OTAUpdate.h"
-
 OTAUpdate::OTAUpdate(const String &serverUrl)
     : serverUrl(serverUrl)
 {
@@ -93,7 +92,7 @@ bool OTAUpdate::checkUpgradedVersion(int arr[])
 
 bool OTAUpdate::performUpdate(const char *updateUrl, int partitionType)
 {
-    HTTPClient http;
+    
     http.setTimeout(5000);
     http.begin(updateUrl);
 
@@ -223,43 +222,44 @@ bool OTAUpdate::performUpdateFromFile(Stream &updateStream, size_t contentLength
     Serial.println("✅ Update successful!");
     return true;
 }
-bool OTAUpdate::updateavailabe(){
-    HTTPClient http;
-    http.setTimeout(5000);
-    http.begin(serverUrl + "/config.json");
+// bool OTAUpdate::updateavailabe(){
+//     HTTPClient http
+//     http.setTimeout(5000);
+//     http.begin(serverUrl + "/config.json");
 
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
-    {
-        String input = http.getString();
-        JsonDocument doc;
+//     int httpCode = http.GET();
+//     if (httpCode == HTTP_CODE_OK)
+//     {
+//         String input = http.getString();
+//         JsonDocument doc;
 
-        DeserializationError error = deserializeJson(doc, input);
+//         DeserializationError error = deserializeJson(doc, input);
 
-        if (error)
-        {
-            Serial.print("deserializeJson() failed: ");
-            Serial.println(error.c_str());
+//         if (error)
+//         {
+//             Serial.print("deserializeJson() failed: ");
+//             Serial.println(error.c_str());
 
-            display.clearDisplay();
-            display.setCursor(10, 10);
-            display.print("Update Error");
-            display.setCursor(10, 20);
-            display.print("JSON Failed");
-            display.display();
+//             display.clearDisplay();
+//             display.setCursor(10, 10);
+//             display.print("Update Error");
+//             display.setCursor(10, 20);
+//             display.print("JSON Failed");
+//             display.display();
 
-            return false;
-        }
+//             return false;
+//         }
 
-        const char *firmware_version = doc["firmware_version"];
-        int arr[3];
-        stringToFirmware(firmware_version, arr);
-        http.end();
-        return checkUpgradedVersion(arr);
+//         const char *firmware_version = doc["firmware_version"];
+//         int arr[3];
+//         stringToFirmware(firmware_version, arr);
+//         http.end();
+//         return checkUpgradedVersion(arr);
         
 
-}
-}
+// }
+// }
+
 // void OTAUpdate::checkForUpdates()
 // {
 //     bool ESPUPGRADED = false;
