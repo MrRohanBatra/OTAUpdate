@@ -43,6 +43,7 @@ private:
     bool checkUpgradedVersion(int arr[]);
     bool performUpdate(const char *updateUrl, int partitionType);
     bool performUpdateFromFile(Stream &updateStream, size_t contentLength, int partitionType);
+    bool performUpdateFromFile(File &updateFile, size_t contentLength, int partitionType);
     void handleUpdatePost(WebServer &server);
     void handleUpdateGet(WebServer &server);
     void handleUpdateUpload(WebServer &server);
