@@ -690,28 +690,6 @@ void OTAUpdate::handleUpdatePost(WebServer &server)
 //         }
 //     }
 // }
-void OTAUpdate::handleUpdateUpload(WebServer &server)
-{
-    HTTPUpload &upload = server.upload();
-    int partitionType = (server.arg("update") == "spiffs") ? U_SPIFFS : U_FLASH;
-
-    static File updateFile;
-    static size_t contentLength = 0;
-
-    if (upload.status == UPLOAD_FILE_START)
-    {
-        Serial.printf("📂 Starting update: %s\n", upload.filename.c_str());
-        contentLength = upload.totalSize; // Store the total file size
-    }
-    else if (upload.status == UPLOAD_FILE_WRITE)
-    {
-        performUpdateFromFile(server, contentLength, partitionType);
-    }
-    else if (upload.status == UPLOAD_FILE_END)
-    {
-        Serial.println("✅ Upload complete.");
-    }
-}
 
 bool OTAUpdate::performUpdateFromFile(File &updateFile, size_t contentLength, int partitionType)
 {
@@ -763,4 +741,55 @@ bool OTAUpdate::performUpdateFromFile(File &updateFile, size_t contentLength, in
 
     Serial.println("✅ Update successful!");
     return true;
+}
+
+void OTAUpdate::handleUpdateUpload(WebServer &server)
+{
+    HTTPUpload &upload = server.upload();
+    int partitionType = (server.arg("update") == "spiffs") ? U_SPIFFS : U_FLASH;
+
+    static File updateFile;
+    static size_t contentLength = 0;
+
+    if (upload.status == UPLOAD_FILE_START)
+    {
+        Serial.printf("📂 Starting update: %s\n", upload.filename.c_str());
+        contentLength = upload.totalSize; // Store the total file size
+
+        // Open a temporary file in SPIFFS for writing
+        updateFile = SPIFFS.open("/update.bin", "w");
+        if (!updateFile)
+        {
+            Serial.println("❌ Failed to create update file!");
+            return;
+        }
+    }
+    else if (upload.status == UPLOAD_FILE_WRITE)
+    {
+        if (updateFile)
+        {
+            updateFile.write(upload.buf, upload.currentSize);
+        }
+    }
+    else if (upload.status == UPLOAD_FILE_END)
+    {
+        if (updateFile)
+        {
+            updateFile.close();
+            Serial.println("✅ Upload complete. Starting update...");
+
+            // Open the file for reading and perform OTA update
+            updateFile = SPIFFS.open("/update.bin", "r");
+            if (updateFile)
+            {
+                performUpdateFromFile(updateFile, contentLength, partitionType);
+                updateFile.close();
+                SPIFFS.remove("/update.bin"); // Clean up after update
+            }
+            else
+            {
+                Serial.println("❌ Failed to reopen update file!");
+            }
+        }
+    }
 }
